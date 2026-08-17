@@ -7,6 +7,7 @@ import { Grade } from '../models/Grade'
 import { Term } from '../models/Term'
 import { AcademicYear } from '../models/AcademicYear'
 import { StudentProfile } from '../models/StudentProfile'
+import { ClassSection } from '../models/ClassSection'
 import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
 
 const router = Router()
@@ -51,6 +52,9 @@ async function serializeRecord(r: FeeRecord) {
     User.findByPk(r.studentId),
   ])
   const grade = structure?.gradeId ? await Grade.findByPk(structure.gradeId) : null
+  const profile = await StudentProfile.findOne({ where: { userId: r.studentId } })
+  const classSection = profile?.classSectionId ? await ClassSection.findByPk(profile.classSectionId) : null
+  const studentGrade = classSection ? await Grade.findByPk(classSection.gradeId) : null
   return {
     id: String(r.id),
     feeStructureId: String(r.feeStructureId),
@@ -62,6 +66,7 @@ async function serializeRecord(r: FeeRecord) {
     studentId: String(r.studentId),
     studentName: student?.name ?? '',
     studentEmail: student?.email ?? '',
+    className: classSection ? `${studentGrade?.name ?? ''}${classSection.name}` : null,
     status: r.status,
     paidAmount: Number(r.paidAmount),
     paidDate: r.paidDate,
