@@ -11,7 +11,7 @@ import { FeeStructure } from '../models/FeeStructure'
 import { InventoryItem } from '../models/InventoryItem'
 import { AfterSchoolClass } from '../models/AfterSchoolClass'
 import { TransactionType, PaymentMode } from '../models/Transaction'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
 import { applyPayment, ApplyPaymentError } from '../services/applyPayment'
 
 const router = Router()
@@ -168,7 +168,7 @@ router.get(
 )
 
 // GET /payment-requests?status= — admin: review queue.
-router.get('/payment-requests', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.get('/payment-requests', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
     const { status } = req.query as { status?: PaymentRequestStatus }
     const where = status ? { status } : {}
@@ -180,7 +180,7 @@ router.get('/payment-requests', requireAuth, requireAdminOrAbove, async (req, re
 })
 
 // PUT /payment-requests/:id/approve — admin verifies the proof and finalizes the payment.
-router.put('/payment-requests/:id/approve', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.put('/payment-requests/:id/approve', requireAuth, requireAdminOrStaffFor('Payments'), async (req: AuthedRequest, res, next) => {
   const t = await sequelize.transaction()
   try {
     // Lock the row (SELECT ... FOR UPDATE) so a second concurrent approve/reject on the same
@@ -236,7 +236,7 @@ router.put('/payment-requests/:id/approve', requireAuth, requireAdminOrAbove, as
 })
 
 // PUT /payment-requests/:id/reject — admin declines the request (e.g. proof doesn't check out).
-router.put('/payment-requests/:id/reject', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.put('/payment-requests/:id/reject', requireAuth, requireAdminOrStaffFor('Payments'), async (req: AuthedRequest, res, next) => {
   const t = await sequelize.transaction()
   try {
     // Same row lock as approve: without it, a reject racing a concurrent approve could read a

@@ -8,7 +8,7 @@ import { Term } from '../models/Term'
 import { AcademicYear } from '../models/AcademicYear'
 import { StudentProfile } from '../models/StudentProfile'
 import { ClassSection } from '../models/ClassSection'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, requireRoleOr, AuthedRequest } from '../middleware/auth'
 
 const router = Router()
 
@@ -99,7 +99,7 @@ router.get('/fees/structures', requireAuth, async (req, res, next) => {
   }
 })
 
-router.post('/fees/structures', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/fees/structures', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
     const { feeType, title, description, amount, dueDate, academicYearId, gradeId, termId, isPackage, packageItemIds } = req.body as {
       feeType?: FeeType
@@ -149,7 +149,7 @@ router.post('/fees/structures', requireAuth, requireAdminOrAbove, async (req, re
   }
 })
 
-router.delete('/fees/structures/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/fees/structures/:id', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
     const structure = await FeeStructure.findByPk(req.params.id)
     if (!structure) return res.status(404).json({ detail: 'Fee structure not found' })
@@ -163,7 +163,7 @@ router.delete('/fees/structures/:id', requireAuth, requireAdminOrAbove, async (r
 
 // ---- Fee records (per-student) ----
 
-router.get('/fees/records', requireAuth, requireRole('admin', 'super_admin', 'teacher'), async (req, res, next) => {
+router.get('/fees/records', requireAuth, requireRoleOr('teacher', requireAdminOrStaffFor('Payments')), async (req, res, next) => {
   try {
     const { studentEmail } = req.query as { studentEmail?: string }
     let where = {}
@@ -187,7 +187,7 @@ router.get('/fees/me', requireAuth, requireRole('student'), async (req: AuthedRe
   }
 })
 
-router.post('/fees/records', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/fees/records', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
     const { feeStructureId, studentEmail } = req.body as { feeStructureId?: string; studentEmail?: string }
     if (!feeStructureId || !studentEmail) {
@@ -212,7 +212,7 @@ router.post('/fees/records', requireAuth, requireAdminOrAbove, async (req, res, 
 
 // Bulk-assign a fee to every student in a grade — a school gives fees to a whole class,
 // not to students one at a time. Skips students who already have a record for this fee.
-router.post('/fees/records/assign-class', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/fees/records/assign-class', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
     const { feeStructureId, gradeId } = req.body as { feeStructureId?: string; gradeId?: string }
     if (!feeStructureId || !gradeId) {
@@ -239,7 +239,7 @@ router.post('/fees/records/assign-class', requireAuth, requireAdminOrAbove, asyn
   }
 })
 
-router.post('/fees/records/:id/pay', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.post('/fees/records/:id/pay', requireAuth, requireAdminOrStaffFor('Payments'), async (req: AuthedRequest, res, next) => {
   try {
     const record = await FeeRecord.findByPk(req.params.id)
     if (!record) return res.status(404).json({ detail: 'Fee record not found' })

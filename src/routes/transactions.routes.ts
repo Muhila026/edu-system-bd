@@ -5,7 +5,7 @@ import { FeeRecord } from '../models/FeeRecord'
 import { FeeStructure } from '../models/FeeStructure'
 import { InventoryItem } from '../models/InventoryItem'
 import { AfterSchoolClass } from '../models/AfterSchoolClass'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
 
 const router = Router()
 
@@ -44,7 +44,7 @@ async function serialize(t: Transaction) {
 }
 
 // GET /transactions?studentEmail=&type= — fee collection report
-router.get('/transactions', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.get('/transactions', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
     const { studentEmail, type } = req.query as { studentEmail?: string; type?: TransactionType }
     const where: Record<string, unknown> = {}

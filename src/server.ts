@@ -4,7 +4,7 @@ dotenv.config()
 import path from 'path'
 import express from 'express'
 import cors from 'cors'
-import { sequelize, ensureDatabaseExists } from './config/database'
+import { sequelize, ensureDatabaseExists, migrateAfterSchoolClassLevelColumn, migrateUserRoleColumn } from './config/database'
 import './models' // register all models before sync
 import routes from './routes'
 import { errorHandler } from './middleware/errorHandler'
@@ -20,6 +20,8 @@ async function main() {
   // 2. Connect and auto-create any tables that don't exist yet.
   await sequelize.authenticate()
   await sequelize.sync()
+  await migrateAfterSchoolClassLevelColumn()
+  await migrateUserRoleColumn()
   console.log('[db] Connected and tables synced')
 
   // 3. Seed the default Super Admin (+ demo accounts) and starter catalog.

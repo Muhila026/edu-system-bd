@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { sequelize } from '../config/database'
 import { User } from '../models/User'
 import { TransactionType, PaymentMode } from '../models/Transaction'
-import { requireAuth, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
 import { applyPayment, ApplyPaymentError } from '../services/applyPayment'
 
 const router = Router()
@@ -37,7 +37,7 @@ type ManualPaymentBody = {
  *
  * See services/applyPayment.ts — the same logic backs payment-request approvals.
  */
-router.post('/payments/manual', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.post('/payments/manual', requireAuth, requireAdminOrStaffFor('Payments'), async (req: AuthedRequest, res, next) => {
   const t = await sequelize.transaction()
   try {
     const { studentEmail, type, referenceId, amount, quantity, paymentMode, notes } = req.body as ManualPaymentBody

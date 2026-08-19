@@ -8,7 +8,7 @@ import { StudentProfile } from '../models/StudentProfile'
 import { ClassSection } from '../models/ClassSection'
 import { Grade } from '../models/Grade'
 import { TeacherProfile } from '../models/TeacherProfile'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
 import { displayIdForRole } from '../utils/displayId'
 
 const router = Router()
@@ -191,7 +191,7 @@ async function serializeTeacherDetail(user: User) {
   }
 }
 
-router.get('/admin/teachers/:email/details', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.get('/admin/teachers/:email/details', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { email: req.params.email, role: 'Teacher' } })
     if (!user) return res.status(404).json({ detail: 'Teacher not found' })
@@ -201,7 +201,7 @@ router.get('/admin/teachers/:email/details', requireAuth, requireAdminOrAbove, a
   }
 })
 
-router.post('/users/teachers/details', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/users/teachers/details', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const { email, department, qualification, subjectSpecialization, joiningDate } = req.body as {
       email?: string

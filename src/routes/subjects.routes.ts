@@ -7,7 +7,7 @@ import { StudentSubjectMarks, ExamType } from '../models/StudentSubjectMarks'
 import { User } from '../models/User'
 import { StudentProfile } from '../models/StudentProfile'
 import { ClassSection } from '../models/ClassSection'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, requireRoleOr, AuthedRequest } from '../middleware/auth'
 
 /** True if this teacher is the class teacher of the division the student currently belongs to —
  *  a class teacher can enter marks for every subject in their class, not just ones they personally teach. */
@@ -56,7 +56,7 @@ router.get('/schema/subjects', requireAuth, async (_req, res, next) => {
   }
 })
 
-router.post('/schema/subjects', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/schema/subjects', requireAuth, requireAdminOrStaffFor('Subjects'), async (req, res, next) => {
   try {
     const { subject_name } = req.body as { subject_name?: string }
     if (!subject_name?.trim()) return res.status(400).json({ detail: 'subject_name is required' })
@@ -67,7 +67,7 @@ router.post('/schema/subjects', requireAuth, requireAdminOrAbove, async (req, re
   }
 })
 
-router.put('/schema/subjects/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/schema/subjects/:id', requireAuth, requireAdminOrStaffFor('Subjects'), async (req, res, next) => {
   try {
     const subject = await Subject.findByPk(req.params.id)
     if (!subject) return res.status(404).json({ detail: 'Subject not found' })
@@ -81,7 +81,7 @@ router.put('/schema/subjects/:id', requireAuth, requireAdminOrAbove, async (req,
   }
 })
 
-router.delete('/schema/subjects/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/schema/subjects/:id', requireAuth, requireAdminOrStaffFor('Subjects'), async (req, res, next) => {
   try {
     const subject = await Subject.findByPk(req.params.id)
     if (!subject) return res.status(404).json({ detail: 'Subject not found' })
@@ -107,7 +107,7 @@ router.get('/schema/student-subjects', requireAuth, async (req, res, next) => {
   }
 })
 
-router.post('/schema/student-subjects', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/schema/student-subjects', requireAuth, requireAdminOrStaffFor('Subjects'), async (req, res, next) => {
   try {
     const { student_id, subject_id } = req.body as { student_id?: string; subject_id?: string }
     if (!student_id || !subject_id) return res.status(400).json({ detail: 'student_id and subject_id are required' })
@@ -120,7 +120,7 @@ router.post('/schema/student-subjects', requireAuth, requireAdminOrAbove, async 
   }
 })
 
-router.delete('/schema/student-subjects/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/schema/student-subjects/:id', requireAuth, requireAdminOrStaffFor('Subjects'), async (req, res, next) => {
   try {
     const row = await StudentSubject.findByPk(req.params.id)
     if (!row) return res.status(404).json({ detail: 'Record not found' })
@@ -155,7 +155,7 @@ router.get('/schema/teacher-subjects', requireAuth, async (req, res, next) => {
   }
 })
 
-router.post('/schema/teacher-subjects', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/schema/teacher-subjects', requireAuth, requireAdminOrStaffFor(['Subjects', 'Class Details']), async (req, res, next) => {
   try {
     const { teacher_id, subject_id } = req.body as { teacher_id?: string; subject_id?: string }
     if (!teacher_id || !subject_id) return res.status(400).json({ detail: 'teacher_id and subject_id are required' })
@@ -168,7 +168,7 @@ router.post('/schema/teacher-subjects', requireAuth, requireAdminOrAbove, async 
   }
 })
 
-router.delete('/schema/teacher-subjects/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/schema/teacher-subjects/:id', requireAuth, requireAdminOrStaffFor('Subjects'), async (req, res, next) => {
   try {
     const row = await TeacherSubject.findByPk(req.params.id)
     if (!row) return res.status(404).json({ detail: 'Record not found' })
@@ -197,7 +197,7 @@ router.get('/schema/student-subject-marks', requireAuth, async (req, res, next) 
 // Admins can mark any student/subject. Teachers may enter marks for subjects they are assigned
 // to teach, or for any subject if they are the class teacher of that student's division — either
 // way, only for students enrolled in that subject.
-router.post('/schema/student-subject-marks', requireAuth, requireRole('teacher', 'admin', 'super_admin'), async (req: AuthedRequest, res, next) => {
+router.post('/schema/student-subject-marks', requireAuth, requireRoleOr('teacher', requireAdminOrStaffFor('Class Details')), async (req: AuthedRequest, res, next) => {
   try {
     const { student_id, subject_id, exam_type, marks, note } = req.body as {
       student_id?: string
@@ -236,7 +236,7 @@ router.post('/schema/student-subject-marks', requireAuth, requireRole('teacher',
   }
 })
 
-router.delete('/schema/student-subject-marks/:id', requireAuth, requireRole('teacher', 'admin', 'super_admin'), async (req: AuthedRequest, res, next) => {
+router.delete('/schema/student-subject-marks/:id', requireAuth, requireRoleOr('teacher', requireAdminOrStaffFor('Class Details')), async (req: AuthedRequest, res, next) => {
   try {
     const row = await StudentSubjectMarks.findByPk(req.params.id)
     if (!row) return res.status(404).json({ detail: 'Record not found' })
