@@ -10,7 +10,8 @@ import { StudentSubject } from '../models/StudentSubject'
 import { TeacherSubject } from '../models/TeacherSubject'
 import { Subject } from '../models/Subject'
 import { StudentSubjectMarks } from '../models/StudentSubjectMarks'
-import { requireAuth, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
+import { RolePermission } from '../models/RolePermission'
 
 const router = Router()
 
@@ -25,7 +26,7 @@ router.get('/academic/years', requireAuth, async (_req, res, next) => {
   }
 })
 
-router.post('/academic/years', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/academic/years', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const { year, startDate, endDate } = req.body as { year?: number; startDate?: string; endDate?: string }
     if (!year) return res.status(400).json({ detail: 'year is required' })
@@ -38,7 +39,7 @@ router.post('/academic/years', requireAuth, requireAdminOrAbove, async (req, res
 })
 
 /** Marks one academic year as current, unmarking all others. */
-router.put('/academic/years/:id/set-current', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/academic/years/:id/set-current', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const year = await AcademicYear.findByPk(req.params.id)
     if (!year) return res.status(404).json({ detail: 'Academic year not found' })
@@ -63,7 +64,7 @@ router.get('/academic/terms', requireAuth, async (req, res, next) => {
   }
 })
 
-router.post('/academic/terms', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/academic/terms', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const { academicYearId, name, startDate, endDate } = req.body as {
       academicYearId?: string
@@ -91,7 +92,7 @@ router.get('/academic/grades', requireAuth, async (_req, res, next) => {
   }
 })
 
-router.post('/academic/grades', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/academic/grades', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const { name, order } = req.body as { name?: string; order?: number }
     if (!name?.trim()) return res.status(400).json({ detail: 'name is required' })
@@ -106,7 +107,7 @@ router.post('/academic/grades', requireAuth, requireAdminOrAbove, async (req, re
   }
 })
 
-router.put('/academic/grades/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/academic/grades/:id', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const grade = await Grade.findByPk(req.params.id)
     if (!grade) return res.status(404).json({ detail: 'Grade not found' })
@@ -125,7 +126,7 @@ router.put('/academic/grades/:id', requireAuth, requireAdminOrAbove, async (req,
   }
 })
 
-router.delete('/academic/grades/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/academic/grades/:id', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const grade = await Grade.findByPk(req.params.id)
     if (!grade) return res.status(404).json({ detail: 'Grade not found' })
@@ -175,7 +176,7 @@ router.get('/academic/classes', requireAuth, async (req, res, next) => {
   }
 })
 
-router.post('/academic/classes', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/academic/classes', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const { gradeId, academicYearId, name, classTeacherId } = req.body as {
       gradeId?: string
@@ -200,7 +201,7 @@ router.post('/academic/classes', requireAuth, requireAdminOrAbove, async (req, r
   }
 })
 
-router.put('/academic/classes/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/academic/classes/:id', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const classSection = await ClassSection.findByPk(req.params.id)
     if (!classSection) return res.status(404).json({ detail: 'Class not found' })
@@ -215,7 +216,7 @@ router.put('/academic/classes/:id', requireAuth, requireAdminOrAbove, async (req
   }
 })
 
-router.delete('/academic/classes/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/academic/classes/:id', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const classSection = await ClassSection.findByPk(req.params.id)
     if (!classSection) return res.status(404).json({ detail: 'Class not found' })
@@ -237,7 +238,7 @@ router.delete('/academic/classes/:id', requireAuth, requireAdminOrAbove, async (
  * division into a subject (creates one StudentSubject row per student, skipping students
  * already enrolled). This is how a subject "shows up" on a class's Subjects & Teachers list.
  */
-router.post('/academic/classes/:id/subjects', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/academic/classes/:id/subjects', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const classSection = await ClassSection.findByPk(req.params.id)
     if (!classSection) return res.status(404).json({ detail: 'Class not found' })
@@ -277,7 +278,12 @@ router.get('/academic/classes/:id/details', requireAuth, async (req: AuthedReque
 
     const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin'
     const isOwnClassTeacher = req.user!.role === 'teacher' && classSection.classTeacherId === req.user!.sub
-    if (!isAdmin && !isOwnClassTeacher) {
+    let isStaffWithAccess = false
+    if (req.user!.role === 'staff') {
+      const row = await RolePermission.findOne({ where: { role: 'staff', pageKey: 'Class Details' } })
+      isStaffWithAccess = !!row?.allowed
+    }
+    if (!isAdmin && !isOwnClassTeacher && !isStaffWithAccess) {
       return res.status(403).json({ detail: 'Insufficient permissions' })
     }
 

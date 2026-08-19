@@ -2,18 +2,18 @@ import { Router } from 'express'
 import { Op, fn, col, literal } from 'sequelize'
 import { User } from '../models/User'
 import { Transaction } from '../models/Transaction'
-import { requireAuth, requireAdminOrAbove } from '../middleware/auth'
+import { requireAuth, requireAdminOrStaffFor } from '../middleware/auth'
 
 const router = Router()
 
-const OTHER_ROLES: Array<User['role']> = ['Admin', 'Super Admin', 'Parent']
+const OTHER_ROLES: Array<User['role']> = ['Admin', 'Super Admin', 'Staff', 'Parent']
 
 /**
  * GET /admin/dashboard — admin dashboard overview: user counts by role,
  * today's cash collection, and a daily payment total for the last 30 days
  * (for the payment analysis chart).
  */
-router.get('/admin/dashboard', requireAuth, requireAdminOrAbove, async (_req, res, next) => {
+router.get('/admin/dashboard', requireAuth, requireAdminOrStaffFor('Dashboard'), async (_req, res, next) => {
   try {
     const [totalUsers, students, teachers, other] = await Promise.all([
       User.count(),

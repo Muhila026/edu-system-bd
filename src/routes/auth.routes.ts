@@ -18,7 +18,7 @@ function generateOtp(): string {
 /** Maps a User.role value to the lowercase, underscored JWT/frontend role slug. */
 function roleSlug(role: UserRole): JwtPayload['role'] {
   if (role === 'Super Admin') return 'super_admin'
-  return role.toLowerCase() as 'student' | 'teacher' | 'admin' | 'parent'
+  return role.toLowerCase() as 'student' | 'teacher' | 'admin' | 'staff' | 'parent'
 }
 
 router.get('/health', (_req, res) => {

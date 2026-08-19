@@ -1,7 +1,9 @@
 import { User } from '../models/User'
 import { ParentChildLink } from '../models/ParentChildLink'
+import { RolePermission } from '../models/RolePermission'
 import { hashPassword } from '../utils/password'
 import { ensureDisplayId } from '../utils/displayId'
+import { TOGGLEABLE_PAGES } from '../routes/permissions.routes'
 
 /**
  * Ensures the default Super Admin exists (required — CEO/management: full financial
@@ -65,6 +67,25 @@ export async function seedDefaults(): Promise<void> {
   }
 
   await backfillDisplayIds()
+  await seedStaffPermissions()
+}
+
+/**
+ * Staff is opt-in per page (unlike Teacher/Student/Parent, whose missing rows default to
+ * allowed=true — see requireAdminOrStaffFor). Seed an explicit row per toggleable page so the
+ * Settings grid and the backend gate agree on the starting state: Dashboard and Payments on
+ * (Dashboard is always-on and non-toggleable in the Settings UI, same as every other role), the
+ * rest off — matching "add Staff to Payments" as the default. A Super Admin can flip on more
+ * from there. Uses findOrCreate so it never overwrites a toggle a Super Admin already changed.
+ */
+async function seedStaffPermissions(): Promise<void> {
+  const alwaysOn = ['Dashboard', 'Payments']
+  for (const pageKey of TOGGLEABLE_PAGES.staff) {
+    await RolePermission.findOrCreate({
+      where: { role: 'staff', pageKey },
+      defaults: { role: 'staff', pageKey, allowed: alwaysOn.includes(pageKey) },
+    })
+  }
 }
 
 /** Every role gets a display ID (ST00001, TE00001, AD00001, SA00001, PA00001, ...).

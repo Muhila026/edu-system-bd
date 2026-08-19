@@ -9,10 +9,10 @@ import { FeeRecord } from '../models/FeeRecord'
 import { ItemRecord } from '../models/ItemRecord'
 import { Transaction } from '../models/Transaction'
 import { hashPassword } from '../utils/password'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, requireRoleOr, AuthedRequest } from '../middleware/auth'
 import { displayIdForRole, ensureDisplayId } from '../utils/displayId'
 
-const ASSIGNABLE_ROLES: UserRole[] = ['Student', 'Teacher', 'Admin', 'Super Admin', 'Parent']
+const ASSIGNABLE_ROLES: UserRole[] = ['Student', 'Teacher', 'Admin', 'Super Admin', 'Staff', 'Parent']
 
 const router = Router()
 
@@ -112,7 +112,7 @@ async function listByRole(role?: UserRole) {
 }
 
 // GET /admin/users — all users
-router.get('/admin/users', requireAuth, requireAdminOrAbove, async (_req, res, next) => {
+router.get('/admin/users', requireAuth, requireAdminOrStaffFor(['User Management', 'Class Details']), async (_req, res, next) => {
   try {
     res.json(await listByRole())
   } catch (err) {
@@ -121,7 +121,7 @@ router.get('/admin/users', requireAuth, requireAdminOrAbove, async (_req, res, n
 })
 
 // GET /admin/students — students only (admin view)
-router.get('/admin/students', requireAuth, requireRole('admin', 'super_admin', 'teacher'), async (_req, res, next) => {
+router.get('/admin/students', requireAuth, requireRoleOr('teacher', requireAdminOrStaffFor(['Class Details', 'Payments'])), async (_req, res, next) => {
   try {
     res.json(await listByRole('Student'))
   } catch (err) {
@@ -130,7 +130,7 @@ router.get('/admin/students', requireAuth, requireRole('admin', 'super_admin', '
 })
 
 // GET /admin/teachers — teachers only
-router.get('/admin/teachers', requireAuth, requireAdminOrAbove, async (_req, res, next) => {
+router.get('/admin/teachers', requireAuth, requireAdminOrStaffFor('User Management'), async (_req, res, next) => {
   try {
     res.json(await listByRole('Teacher'))
   } catch (err) {
@@ -148,7 +148,7 @@ router.get('/teachers/students', requireAuth, requireRole('teacher', 'admin'), a
 })
 
 // POST /admin/users — create a user (student/teacher/admin/super admin/parent)
-router.post('/admin/users', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.post('/admin/users', requireAuth, requireAdminOrStaffFor('User Management'), async (req: AuthedRequest, res, next) => {
   try {
     const { name, email, role, status, password, phone, joinedDate, ...profileInput } = req.body as {
       name?: string
@@ -195,7 +195,7 @@ router.post('/admin/users', requireAuth, requireAdminOrAbove, async (req: Authed
 })
 
 // PUT /admin/users/:id — update name/email/role/status
-router.put('/admin/users/:id', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.put('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Management'), async (req: AuthedRequest, res, next) => {
   try {
     const user = await User.findByPk(req.params.id)
     if (!user) return res.status(404).json({ detail: 'User not found' })
@@ -234,7 +234,7 @@ router.put('/admin/users/:id', requireAuth, requireAdminOrAbove, async (req: Aut
 })
 
 // PUT /admin/change-user-password — admin resets another user's password (no current-password check).
-router.put('/admin/change-user-password', requireAuth, requireAdminOrAbove, async (req: AuthedRequest, res, next) => {
+router.put('/admin/change-user-password', requireAuth, requireAdminOrStaffFor('User Management'), async (req: AuthedRequest, res, next) => {
   try {
     const { user_id, email, new_password } = req.body as { user_id?: number; email?: string; new_password?: string }
     if (!new_password || new_password.length < 6) {
@@ -260,7 +260,7 @@ router.put('/admin/change-user-password', requireAuth, requireAdminOrAbove, asyn
 })
 
 // DELETE /admin/users/:id
-router.delete('/admin/users/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const user = await User.findByPk(req.params.id)
     if (!user) return res.status(404).json({ detail: 'User not found' })

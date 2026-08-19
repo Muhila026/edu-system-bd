@@ -9,7 +9,7 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
 export type JwtPayload = {
   sub: number
   email: string
-  role: 'student' | 'teacher' | 'admin' | 'super_admin' | 'parent'
+  role: 'student' | 'teacher' | 'admin' | 'super_admin' | 'staff' | 'parent'
   name: string
 }
 

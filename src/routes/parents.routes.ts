@@ -8,13 +8,13 @@ import { ItemRecord } from '../models/ItemRecord'
 import { Transaction } from '../models/Transaction'
 import { StudentSubjectMarks } from '../models/StudentSubjectMarks'
 import { Subject } from '../models/Subject'
-import { requireAuth, requireAdminOrAbove, requireRole, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireAdminOrStaffFor, requireRole, AuthedRequest } from '../middleware/auth'
 
 const router = Router()
 
 // ==================== Admin: manage parent accounts + links ====================
 
-router.get('/admin/parents', requireAuth, requireAdminOrAbove, async (_req, res, next) => {
+router.get('/admin/parents', requireAuth, requireAdminOrStaffFor('User Management'), async (_req, res, next) => {
   try {
     const parents = await User.findAll({ where: { role: 'Parent' }, order: [['id', 'DESC']] })
     res.json(parents.map((p) => ({ id: p.id, name: p.name, email: p.email, status: p.status, joinedDate: p.joinedDate })))
@@ -24,7 +24,7 @@ router.get('/admin/parents', requireAuth, requireAdminOrAbove, async (_req, res,
 })
 
 /** Link an existing Parent account to an existing Student account. */
-router.post('/admin/parents/link', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/admin/parents/link', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const { parentEmail, studentEmail, relationship } = req.body as {
       parentEmail?: string
@@ -55,7 +55,7 @@ router.post('/admin/parents/link', requireAuth, requireAdminOrAbove, async (req,
   }
 })
 
-router.delete('/admin/parents/link/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/admin/parents/link/:id', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const link = await ParentChildLink.findByPk(req.params.id)
     if (!link) return res.status(404).json({ detail: 'Link not found' })
@@ -88,7 +88,7 @@ async function serializeParentDetail(user: User) {
   }
 }
 
-router.get('/admin/parents/:email/details', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.get('/admin/parents/:email/details', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { email: req.params.email, role: 'Parent' } })
     if (!user) return res.status(404).json({ detail: 'Parent not found' })
@@ -98,7 +98,7 @@ router.get('/admin/parents/:email/details', requireAuth, requireAdminOrAbove, as
   }
 })
 
-router.post('/admin/parents/:email/details', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/admin/parents/:email/details', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const { occupation, address, emergencyContact } = req.body as {
       occupation?: string

@@ -9,6 +9,7 @@ export const ROLE_ID_PREFIX: Record<UserRole, string> = {
   Teacher: 'TE',
   Admin: 'AD',
   'Super Admin': 'SA',
+  Staff: 'SF',
   Parent: 'PA',
 }
 

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { CustomRole } from '../models/CustomRole'
-import { requireAuth, requireAdminOrAbove } from '../middleware/auth'
+import { requireAuth, requireAdminOrStaffFor } from '../middleware/auth'
 
 const router = Router()
 
@@ -10,6 +10,7 @@ const SYSTEM_ROLES: Array<{ roleKey: string; displayName: string; description: s
   { roleKey: 'Teacher', displayName: 'Teacher', description: 'Teaching staff account' },
   { roleKey: 'Admin', displayName: 'Administrator', description: 'Office/billing staff account' },
   { roleKey: 'Super Admin', displayName: 'Super Admin', description: 'Full system control' },
+  { roleKey: 'Staff', displayName: 'Staff', description: 'Limited office staff — page access set by a Super Admin' },
   { roleKey: 'Parent', displayName: 'Parent', description: 'Guardian read-only account' },
 ]
 const SYSTEM_ROLE_KEYS = SYSTEM_ROLES.map((r) => r.roleKey)
@@ -18,7 +19,7 @@ function serialize(r: CustomRole) {
   return { roleKey: r.roleKey, displayName: r.displayName, description: r.description ?? undefined }
 }
 
-router.get('/users/roles', requireAuth, requireAdminOrAbove, async (_req, res, next) => {
+router.get('/users/roles', requireAuth, requireAdminOrStaffFor('User Management'), async (_req, res, next) => {
   try {
     const customRoles = await CustomRole.findAll({ order: [['id', 'DESC']] })
     const overrides = new Map(customRoles.map((r) => [r.roleKey, r]))
@@ -33,7 +34,7 @@ router.get('/users/roles', requireAuth, requireAdminOrAbove, async (_req, res, n
   }
 })
 
-router.post('/users/roles', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/users/roles', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const { roleKey, displayName, description } = req.body as { roleKey?: string; displayName?: string; description?: string }
     if (!roleKey?.trim() || !displayName?.trim()) {
@@ -54,7 +55,7 @@ router.post('/users/roles', requireAuth, requireAdminOrAbove, async (req, res, n
   }
 })
 
-router.put('/users/roles/:roleKey', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/users/roles/:roleKey', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const { displayName, description } = req.body as { displayName?: string; description?: string }
     const [role] = await CustomRole.findOrCreate({
@@ -70,7 +71,7 @@ router.put('/users/roles/:roleKey', requireAuth, requireAdminOrAbove, async (req
   }
 })
 
-router.delete('/users/roles/:roleKey', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/users/roles/:roleKey', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     if (SYSTEM_ROLE_KEYS.includes(req.params.roleKey)) {
       return res.status(400).json({ detail: 'System roles cannot be deleted' })

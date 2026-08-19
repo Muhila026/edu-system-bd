@@ -8,7 +8,7 @@ import { StudentSubject } from '../models/StudentSubject'
 import { Subject } from '../models/Subject'
 import { ParentChildLink } from '../models/ParentChildLink'
 import { hashPassword } from '../utils/password'
-import { requireAuth, requireAdminOrAbove, requireRole, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireAdminOrStaffFor, requireRole, AuthedRequest } from '../middleware/auth'
 import { displayIdForRole } from '../utils/displayId'
 
 const router = Router()
@@ -38,7 +38,7 @@ async function serialize(user: User, profile: StudentProfile | null) {
  * Creates the login account (User, role=Student) and the academic profile
  * (StudentProfile: grade level, DOB, gender, grade/class assignment) in a single call.
  */
-router.post('/students/register', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/students/register', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const {
       name,
@@ -104,7 +104,7 @@ router.post('/students/register', requireAuth, requireAdminOrAbove, async (req, 
  * with classSectionId: null). Also syncs gradeId to the division's grade so the two never
  * disagree.
  */
-router.put('/students/:id/assign-class', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/students/:id/assign-class', requireAuth, requireAdminOrStaffFor('Class Details'), async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { id: req.params.id, role: 'Student' } })
     if (!user) return res.status(404).json({ detail: 'Student not found' })
@@ -129,7 +129,7 @@ router.put('/students/:id/assign-class', requireAuth, requireAdminOrAbove, async
 })
 
 /** GET /students/:id/profile — enrollment + academic profile details. */
-router.get('/students/:id/profile', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.get('/students/:id/profile', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { id: req.params.id, role: 'Student' } })
     if (!user) return res.status(404).json({ detail: 'Student not found' })
@@ -225,7 +225,7 @@ async function serializeStudentDetail(user: User) {
   }
 }
 
-router.get('/admin/students/:email/details', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.get('/admin/students/:email/details', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { email: req.params.email, role: 'Student' } })
     if (!user) return res.status(404).json({ detail: 'Student not found' })
@@ -245,7 +245,7 @@ router.get('/users/students/details/:email', requireAuth, requireRole('teacher',
   }
 })
 
-router.post('/admin/students/:email/details', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/admin/students/:email/details', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
   try {
     const { gradeLevel, dateOfBirth, gender, batch, program, currentSemester, contactNumber, address, admissionDate } = req.body as {
       gradeLevel?: GradeLevel

@@ -4,9 +4,11 @@ import { sequelize } from '../config/database'
 /**
  * 'Super Admin' = CEO/management: full financial analytics, cash reconciliation audit, user management.
  * 'Admin' = office/billing staff: enrollment, manual cash payments, inventory issuance, receipts.
+ * 'Staff' = limited office staff: same admin-style pages as Admin, but only the ones a Super Admin
+ *   has toggled on for them in Settings (see permissions.routes.ts TOGGLEABLE_PAGES).
  * 'Parent' = guardian: read-only view of their own linked children (fees, attendance, results, receipts).
  */
-export type UserRole = 'Student' | 'Teacher' | 'Admin' | 'Super Admin' | 'Parent'
+export type UserRole = 'Student' | 'Teacher' | 'Admin' | 'Super Admin' | 'Staff' | 'Parent'
 export type UserStatus = 'Active' | 'Inactive'
 
 export interface UserAttributes {
@@ -40,7 +42,7 @@ User.init(
     email: { type: DataTypes.STRING(150), allowNull: false, unique: true },
     passwordHash: { type: DataTypes.STRING(255), allowNull: false },
     phone: { type: DataTypes.STRING(20), allowNull: true },
-    role: { type: DataTypes.ENUM('Student', 'Teacher', 'Admin', 'Super Admin', 'Parent'), allowNull: false },
+    role: { type: DataTypes.ENUM('Student', 'Teacher', 'Admin', 'Super Admin', 'Staff', 'Parent'), allowNull: false },
     status: { type: DataTypes.ENUM('Active', 'Inactive'), allowNull: false, defaultValue: 'Active' },
     joinedDate: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
   },

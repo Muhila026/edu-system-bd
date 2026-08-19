@@ -3,7 +3,7 @@ import { AfterSchoolClass, AfterSchoolClassName, AfterSchoolClassLevel } from '.
 import { ClassEnrollment, EnrollmentStatus } from '../models/ClassEnrollment'
 import { User } from '../models/User'
 import { Transaction } from '../models/Transaction'
-import { requireAuth, requireRole, requireAdminOrAbove, AuthedRequest } from '../middleware/auth'
+import { requireAuth, requireRole, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
 
 const router = Router()
 
@@ -51,7 +51,7 @@ router.get('/after-school-classes', requireAuth, async (_req, res, next) => {
   }
 })
 
-router.post('/after-school-classes', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.post('/after-school-classes', requireAuth, requireAdminOrStaffFor(['Subjects', 'Class Details']), async (req, res, next) => {
   try {
     const { name, description, schedule, level, admissionFee } = req.body as {
       name?: AfterSchoolClassName
@@ -75,7 +75,7 @@ router.post('/after-school-classes', requireAuth, requireAdminOrAbove, async (re
   }
 })
 
-router.put('/after-school-classes/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/after-school-classes/:id', requireAuth, requireAdminOrStaffFor(['Subjects', 'Class Details']), async (req, res, next) => {
   try {
     const cls = await AfterSchoolClass.findByPk(req.params.id)
     if (!cls) return res.status(404).json({ detail: 'Class not found' })
@@ -99,7 +99,7 @@ router.put('/after-school-classes/:id', requireAuth, requireAdminOrAbove, async 
   }
 })
 
-router.delete('/after-school-classes/:id', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.delete('/after-school-classes/:id', requireAuth, requireAdminOrStaffFor(['Subjects', 'Class Details']), async (req, res, next) => {
   try {
     const cls = await AfterSchoolClass.findByPk(req.params.id)
     if (!cls) return res.status(404).json({ detail: 'Class not found' })
@@ -160,7 +160,7 @@ router.post('/after-school-classes/:id/enroll', requireAuth, requireRole('studen
   }
 })
 
-router.put('/after-school-classes/enrollments/:id/status', requireAuth, requireAdminOrAbove, async (req, res, next) => {
+router.put('/after-school-classes/enrollments/:id/status', requireAuth, requireAdminOrStaffFor(['Subjects', 'Class Details']), async (req, res, next) => {
   try {
     const enrollment = await ClassEnrollment.findByPk(req.params.id)
     if (!enrollment) return res.status(404).json({ detail: 'Enrollment not found' })
