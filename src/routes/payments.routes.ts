@@ -4,6 +4,7 @@ import { User } from '../models/User'
 import { TransactionType, PaymentMode } from '../models/Transaction'
 import { requireAuth, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
 import { applyPayment, ApplyPaymentError } from '../services/applyPayment'
+import { proofUpload, proofImageUrl } from '../middleware/proofUpload'
 
 const router = Router()
 
@@ -11,8 +12,8 @@ type ManualPaymentBody = {
   studentEmail?: string
   type?: TransactionType
   referenceId?: string
-  amount?: number
-  quantity?: number // 'Item' payments only
+  amount?: number | string
+  quantity?: number | string // 'Item' payments only
   paymentMode?: PaymentMode
   notes?: string
 }
@@ -35,59 +36,72 @@ type ManualPaymentBody = {
  * Transaction row (the audit trail / receipt) tagged with who collected the cash and when —
  * this is what the Super Admin's cash-reconciliation report reads from.
  *
- * See services/applyPayment.ts — the same logic backs payment-request approvals.
+ * Staff can optionally attach a receipt/proof image (e.g. a photo of a bank slip) alongside
+ * the cash entry — submitted as multipart/form-data with the file under the "proof" field;
+ * a plain JSON body (no proof) still works exactly as before.
+ *
+ * See services/applyPayment.ts.
  */
-router.post('/payments/manual', requireAuth, requireAdminOrStaffFor('Payments'), async (req: AuthedRequest, res, next) => {
-  const t = await sequelize.transaction()
-  try {
-    const { studentEmail, type, referenceId, amount, quantity, paymentMode, notes } = req.body as ManualPaymentBody
+router.post(
+  '/payments/manual',
+  requireAuth,
+  requireAdminOrStaffFor('Payments'),
+  proofUpload.single('proof'),
+  async (req: AuthedRequest, res, next) => {
+    const t = await sequelize.transaction()
+    try {
+      const { studentEmail, type, referenceId, amount, quantity, paymentMode, notes } = req.body as ManualPaymentBody
+      const numericAmount = amount != null ? Number(amount) : null
 
-    if (!studentEmail || !type || !referenceId || amount == null || amount <= 0) {
+      if (!studentEmail || !type || !referenceId || numericAmount == null || numericAmount <= 0) {
+        await t.rollback()
+        return res.status(400).json({ detail: 'studentEmail, type, referenceId and a positive amount are required' })
+      }
+
+      const student = await User.findOne({ where: { email: studentEmail.trim().toLowerCase(), role: 'Student' }, transaction: t })
+      if (!student) {
+        await t.rollback()
+        return res.status(404).json({ detail: 'Student not found' })
+      }
+
+      const { transaction, receiptDetail } = await applyPayment(
+        {
+          student,
+          type,
+          referenceId,
+          amount: numericAmount,
+          quantity: quantity != null ? Number(quantity) : undefined,
+          paymentMode: paymentMode && ['Cash', 'Card', 'Online Transfer'].includes(paymentMode) ? paymentMode : 'Cash',
+          notes,
+          collectedByUserId: req.user!.sub,
+          proofImagePath: req.file?.filename ?? null,
+        },
+        t
+      )
+
+      await t.commit()
+
+      res.status(201).json({
+        receipt: {
+          receiptNumber: transaction.receiptNumber,
+          studentId: String(student.id),
+          studentName: student.name,
+          studentEmail: student.email,
+          amount: Number(transaction.amount),
+          paymentDate: transaction.paymentDate,
+          paymentMode: transaction.paymentMode,
+          type: transaction.type,
+          collectedBy: req.user!.name,
+          proofImageUrl: proofImageUrl(transaction.proofImagePath),
+        },
+        detail: receiptDetail,
+      })
+    } catch (err) {
       await t.rollback()
-      return res.status(400).json({ detail: 'studentEmail, type, referenceId and a positive amount are required' })
+      if (err instanceof ApplyPaymentError) return res.status(err.status).json({ detail: err.message })
+      next(err)
     }
-
-    const student = await User.findOne({ where: { email: studentEmail.trim().toLowerCase(), role: 'Student' }, transaction: t })
-    if (!student) {
-      await t.rollback()
-      return res.status(404).json({ detail: 'Student not found' })
-    }
-
-    const { transaction, receiptDetail } = await applyPayment(
-      {
-        student,
-        type,
-        referenceId,
-        amount,
-        quantity,
-        paymentMode: paymentMode && ['Cash', 'Card', 'Online Transfer'].includes(paymentMode) ? paymentMode : 'Cash',
-        notes,
-        collectedByUserId: req.user!.sub,
-      },
-      t
-    )
-
-    await t.commit()
-
-    res.status(201).json({
-      receipt: {
-        receiptNumber: transaction.receiptNumber,
-        studentId: String(student.id),
-        studentName: student.name,
-        studentEmail: student.email,
-        amount: Number(transaction.amount),
-        paymentDate: transaction.paymentDate,
-        paymentMode: transaction.paymentMode,
-        type: transaction.type,
-        collectedBy: req.user!.name,
-      },
-      detail: receiptDetail,
-    })
-  } catch (err) {
-    await t.rollback()
-    if (err instanceof ApplyPaymentError) return res.status(err.status).json({ detail: err.message })
-    next(err)
   }
-})
+)
 
 export default router

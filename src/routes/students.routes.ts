@@ -118,6 +118,16 @@ router.put('/students/:id/assign-class', requireAuth, requireAdminOrStaffFor('Cl
     }
 
     const [profile] = await StudentProfile.findOrCreate({ where: { userId: user.id } })
+
+    if (classSectionId && profile.classSectionId && profile.classSectionId !== Number(classSectionId)) {
+      const currentSection = await ClassSection.findByPk(profile.classSectionId)
+      return res.status(409).json({
+        detail: currentSection
+          ? `${user.name} is already assigned to ${currentSection.name}. Remove them from that class first.`
+          : `${user.name} is already assigned to another class. Remove them from that class first.`,
+      })
+    }
+
     profile.classSectionId = classSectionId ? Number(classSectionId) : null
     profile.gradeId = gradeId
     await profile.save()

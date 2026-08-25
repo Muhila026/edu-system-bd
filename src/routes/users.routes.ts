@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Op } from 'sequelize'
 import { User, UserRole } from '../models/User'
 import { StudentProfile, GradeLevel, Gender } from '../models/StudentProfile'
 import { TeacherProfile } from '../models/TeacherProfile'
@@ -103,18 +104,17 @@ function serialize(user: User) {
   }
 }
 
-async function listByRole(role?: UserRole) {
-  const users = await User.findAll({
-    where: role ? { role } : undefined,
-    order: [['id', 'DESC']],
-  })
+/** Super Admin accounts are only visible to other Super Admins — Admin/Staff callers never see them, in lists or otherwise. */
+async function listByRole(role?: UserRole, viewerRole?: string) {
+  const where = role ? { role } : viewerRole !== 'super_admin' ? { role: { [Op.ne]: 'Super Admin' as UserRole } } : undefined
+  const users = await User.findAll({ where, order: [['id', 'DESC']] })
   return users.map(serialize)
 }
 
-// GET /admin/users — all users
-router.get('/admin/users', requireAuth, requireAdminOrStaffFor(['User Management', 'Class Details']), async (_req, res, next) => {
+// GET /admin/users — all users (Super Admin rows hidden from non-Super-Admin callers)
+router.get('/admin/users', requireAuth, requireAdminOrStaffFor(['User Management', 'Class Details']), async (req: AuthedRequest, res, next) => {
   try {
-    res.json(await listByRole())
+    res.json(await listByRole(undefined, req.user?.role))
   } catch (err) {
     next(err)
   }
@@ -188,7 +188,7 @@ router.post('/admin/users', requireAuth, requireAdminOrStaffFor('User Management
       joinedDate: joinedDate || new Date().toISOString().slice(0, 10),
     })
     await createRoleProfile(user, profileInput)
-    res.status(201).json(await listByRole())
+    res.status(201).json(await listByRole(undefined, req.user?.role))
   } catch (err) {
     next(err)
   }
@@ -199,6 +199,10 @@ router.put('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Managem
   try {
     const user = await User.findByPk(req.params.id)
     if (!user) return res.status(404).json({ detail: 'User not found' })
+    // A Super Admin account is only visible to, and editable by, other Super Admins.
+    if (user.role === 'Super Admin' && req.user?.role !== 'super_admin') {
+      return res.status(404).json({ detail: 'User not found' })
+    }
     const { name, email, role, status, joinedDate } = req.body as {
       name?: string
       email?: string
@@ -227,7 +231,7 @@ router.put('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Managem
     if (joinedDate) user.joinedDate = joinedDate
     await user.save()
     await ensureDisplayId(user)
-    res.json(await listByRole())
+    res.json(await listByRole(undefined, req.user?.role))
   } catch (err) {
     next(err)
   }
@@ -260,10 +264,14 @@ router.put('/admin/change-user-password', requireAuth, requireAdminOrStaffFor('U
 })
 
 // DELETE /admin/users/:id
-router.delete('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Management'), async (req, res, next) => {
+router.delete('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Management'), async (req: AuthedRequest, res, next) => {
   try {
     const user = await User.findByPk(req.params.id)
     if (!user) return res.status(404).json({ detail: 'User not found' })
+    // A Super Admin account is only visible to, and removable by, other Super Admins.
+    if (user.role === 'Super Admin' && req.user?.role !== 'super_admin') {
+      return res.status(404).json({ detail: 'User not found' })
+    }
 
     // Financial/audit records are never silently cascade-deleted — ask the admin
     // to deactivate the account instead of losing that history.
@@ -288,7 +296,7 @@ router.delete('/admin/users/:id', requireAuth, requireAdminOrStaffFor('User Mana
       ClassEnrollment.destroy({ where: { studentId: user.id } }),
     ])
     await user.destroy()
-    res.json(await listByRole())
+    res.json(await listByRole(undefined, req.user?.role))
   } catch (err) {
     next(err)
   }

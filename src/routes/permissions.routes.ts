@@ -7,8 +7,8 @@ const router = Router()
 /** Toggleable roles and the pages each one can see. Admin/Super Admin always have full access. */
 export const TOGGLEABLE_PAGES: Record<string, string[]> = {
   teacher: ['Dashboard', 'My Class', 'Enter Marks', 'Manage Students'],
-  student: ['Dashboard', 'My Subjects', 'Payment History', 'Payment Details', 'Payment Requests', 'After-School Classes'],
-  parent: ['Dashboard', 'Fees', 'Items', 'Receipts', 'Payment Requests', 'Marks'],
+  student: ['Dashboard', 'My Subjects', 'Payment History', 'Payment Details', 'After-School Classes'],
+  parent: ['Dashboard', 'Fees', 'Items', 'Receipts', 'Marks'],
   /** Staff is a limited-admin role: same page set as Admin, minus Settings, opt-in per page. */
   staff: ['Dashboard', 'User Management', 'Subjects', 'Class Details', 'Payments'],
 }
