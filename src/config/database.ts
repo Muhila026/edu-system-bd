@@ -66,3 +66,42 @@ export async function migrateUserRoleColumn(): Promise<void> {
     console.log('[migrate] users.role column widened to include Staff')
   }
 }
+
+/**
+ * `fee_structures.dueDate` (a single date) was replaced by a payment window: `dueDateStart`
+ * (when it opens) and `dueDateEnd` (the actual due-by date). On an old database, rename the
+ * existing column into `dueDateStart` so old due dates are preserved, then add `dueDateEnd`.
+ * Sequelize maps attributes to identically-named columns here (no `underscored`/`field`
+ * overrides anywhere in this codebase), so the actual column names are camelCase, not snake_case.
+ */
+export async function migrateFeeStructureDueDateColumns(): Promise<void> {
+  const [rows] = await sequelize.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fee_structures'
+       AND COLUMN_NAME IN ('dueDate', 'dueDateStart', 'dueDateEnd')`
+  )
+  const columns = new Set((rows as Array<{ COLUMN_NAME: string }>).map((r) => r.COLUMN_NAME))
+  if (columns.has('dueDate') && !columns.has('dueDateStart')) {
+    await sequelize.query('ALTER TABLE fee_structures CHANGE COLUMN `dueDate` `dueDateStart` DATE NULL')
+    console.log('[migrate] fee_structures.dueDate renamed to dueDateStart')
+  }
+  if (!columns.has('dueDateEnd')) {
+    await sequelize.query('ALTER TABLE fee_structures ADD COLUMN `dueDateEnd` DATE NULL')
+    console.log('[migrate] fee_structures.dueDateEnd column added')
+  }
+}
+
+/**
+ * `transactions.proofImagePath` is a new optional column — the receipt/proof image an
+ * admin/staff member can attach when recording a payment. Add it in place on old databases.
+ */
+export async function migrateTransactionProofColumn(): Promise<void> {
+  const [rows] = await sequelize.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'proofImagePath'`
+  )
+  if ((rows as unknown[]).length === 0) {
+    await sequelize.query('ALTER TABLE transactions ADD COLUMN `proofImagePath` VARCHAR(255) NULL')
+    console.log('[migrate] transactions.proofImagePath column added')
+  }
+}

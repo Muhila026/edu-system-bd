@@ -6,6 +6,7 @@ import { FeeStructure } from '../models/FeeStructure'
 import { InventoryItem } from '../models/InventoryItem'
 import { AfterSchoolClass } from '../models/AfterSchoolClass'
 import { requireAuth, requireRole, requireAdminOrStaffFor, AuthedRequest } from '../middleware/auth'
+import { proofImageUrl } from '../middleware/proofUpload'
 
 const router = Router()
 
@@ -40,6 +41,7 @@ async function serialize(t: Transaction) {
     receiptNumber: t.receiptNumber,
     paymentMode: t.paymentMode,
     notes: t.notes,
+    proofImageUrl: proofImageUrl(t.proofImagePath),
   }
 }
 

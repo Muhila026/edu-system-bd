@@ -9,6 +9,7 @@ import { Transaction } from '../models/Transaction'
 import { StudentSubjectMarks } from '../models/StudentSubjectMarks'
 import { Subject } from '../models/Subject'
 import { requireAuth, requireAdminOrStaffFor, requireRole, AuthedRequest } from '../middleware/auth'
+import { proofImageUrl } from '../middleware/proofUpload'
 
 const router = Router()
 
@@ -217,7 +218,8 @@ router.get('/parents/children/:studentId/fees', requireAuth, requireRole('parent
           amount: Number(r.amount),
           paidAmount: Number(r.paidAmount),
           status: r.status,
-          dueDate: structure?.dueDate ?? null,
+          dueDateStart: structure?.dueDateStart ?? null,
+          dueDateEnd: structure?.dueDateEnd ?? null,
         }
       })
     )
@@ -253,6 +255,7 @@ router.get('/parents/children/:studentId/receipts', requireAuth, requireRole('pa
         paymentDate: t.paymentDate,
         type: t.type,
         paymentMode: t.paymentMode,
+        proofImageUrl: proofImageUrl(t.proofImagePath),
       }))
     )
   } catch (err) {

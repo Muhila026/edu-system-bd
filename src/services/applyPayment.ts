@@ -25,6 +25,8 @@ export type ApplyPaymentInput = {
   paymentMode: PaymentMode
   notes?: string
   collectedByUserId: number | null
+  /** Filename of an optional receipt/proof image the collector attached. */
+  proofImagePath?: string | null
 }
 
 /**
@@ -32,12 +34,10 @@ export type ApplyPaymentInput = {
  * fee/item/class" into the actual side effects (fee balance, stock deduction + item issue,
  * or class enrollment installment) plus the audit-trail Transaction row.
  *
- * Shared by POST /payments/manual (admin keys in cash collected at the counter) and the
- * payment-request approval flow (admin approves a student/parent-submitted online-transfer
- * proof) so the two entry points can never drift apart in behavior.
+ * Used by POST /payments/manual — admin/staff keying in what was collected at the counter.
  */
 export async function applyPayment(input: ApplyPaymentInput, t: SequelizeTransaction) {
-  const { student, type, referenceId, amount, quantity, paymentMode, notes, collectedByUserId } = input
+  const { student, type, referenceId, amount, quantity, paymentMode, notes, collectedByUserId, proofImagePath } = input
   let receiptDetail: Record<string, unknown> = {}
 
   if (type === 'Fee') {
@@ -71,32 +71,89 @@ export async function applyPayment(input: ApplyPaymentInput, t: SequelizeTransac
     const item = await InventoryItem.findByPk(referenceId, { transaction: t })
     if (!item) throw new ApplyPaymentError(404, 'Inventory item not found')
     const qty = quantity && quantity > 0 ? quantity : 1
-    if (item.stockQuantity != null && item.stockQuantity < qty) {
-      throw new ApplyPaymentError(409, `Insufficient stock: only ${item.stockQuantity} unit(s) of ${item.name} left`)
-    }
 
-    if (item.stockQuantity != null) {
-      item.stockQuantity -= qty
-      await item.save({ transaction: t })
-    }
+    if (!item.isPackage) {
+      if (item.stockQuantity != null && item.stockQuantity < qty) {
+        throw new ApplyPaymentError(409, `Insufficient stock: only ${item.stockQuantity} unit(s) of ${item.name} left`)
+      }
 
-    const issued = await ItemRecord.create(
-      {
-        itemName: item.name,
-        inventoryItemId: item.id,
-        studentId: student.id,
+      if (item.stockQuantity != null) {
+        item.stockQuantity -= qty
+        await item.save({ transaction: t })
+      }
+
+      const issued = await ItemRecord.create(
+        {
+          itemName: item.name,
+          inventoryItemId: item.id,
+          studentId: student.id,
+          quantity: qty,
+          issuedDate: new Date().toISOString().slice(0, 10),
+          notes: notes?.trim() || null,
+        },
+        { transaction: t }
+      )
+
+      receiptDetail = {
+        itemRecordId: String(issued.id),
+        item: item.name,
         quantity: qty,
-        issuedDate: new Date().toISOString().slice(0, 10),
-        notes: notes?.trim() || null,
-      },
-      { transaction: t }
-    )
+        remainingStock: item.stockQuantity,
+      }
+    } else {
+      // Package: expand into one ItemRecord per included item so Issued Items / stock reflect
+      // the actual contents, not just the bundle's catalog row.
+      const includedNames: string[] = item.packageItems ? JSON.parse(item.packageItems) : []
+      if (includedNames.length === 0) {
+        throw new ApplyPaymentError(400, `Package "${item.name}" has no items configured`)
+      }
+      const includedItems = await InventoryItem.findAll({ where: { name: includedNames }, transaction: t })
+      const byName = new Map(includedItems.map((i) => [i.name, i]))
 
-    receiptDetail = {
-      itemRecordId: String(issued.id),
-      item: item.name,
-      quantity: qty,
-      remainingStock: item.stockQuantity,
+      for (const name of includedNames) {
+        const componentItem = byName.get(name)
+        if (componentItem?.stockQuantity != null && componentItem.stockQuantity < qty) {
+          throw new ApplyPaymentError(409, `Insufficient stock: only ${componentItem.stockQuantity} unit(s) of ${name} left`)
+        }
+      }
+
+      const issuedRecords: ItemRecord[] = []
+      for (const name of includedNames) {
+        const componentItem = byName.get(name)
+        if (componentItem?.stockQuantity != null) {
+          componentItem.stockQuantity -= qty
+          await componentItem.save({ transaction: t })
+        }
+        issuedRecords.push(
+          await ItemRecord.create(
+            {
+              itemName: name,
+              inventoryItemId: componentItem?.id ?? null,
+              studentId: student.id,
+              quantity: qty,
+              issuedDate: new Date().toISOString().slice(0, 10),
+              notes: notes?.trim() ? `${notes.trim()} (from package: ${item.name})` : `From package: ${item.name}`,
+            },
+            { transaction: t }
+          )
+        )
+      }
+
+      if (item.stockQuantity != null) {
+        if (item.stockQuantity < qty) {
+          throw new ApplyPaymentError(409, `Insufficient stock: only ${item.stockQuantity} unit(s) of ${item.name} left`)
+        }
+        item.stockQuantity -= qty
+        await item.save({ transaction: t })
+      }
+
+      receiptDetail = {
+        itemRecordIds: issuedRecords.map((r) => String(r.id)),
+        item: item.name,
+        includedItems: includedNames,
+        quantity: qty,
+        remainingStock: item.stockQuantity,
+      }
     }
   } else if (type === 'After-School Class') {
     const cls = await AfterSchoolClass.findByPk(referenceId, { transaction: t })
@@ -140,6 +197,7 @@ export async function applyPayment(input: ApplyPaymentInput, t: SequelizeTransac
       notes: notes?.trim() || null,
       paymentMode,
       collectedByUserId,
+      proofImagePath: proofImagePath || null,
     },
     { transaction: t }
   )

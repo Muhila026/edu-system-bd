@@ -13,7 +13,6 @@ import itemsRoutes from './items.routes'
 import afterSchoolClassesRoutes from './afterSchoolClasses.routes'
 import transactionsRoutes from './transactions.routes'
 import paymentsRoutes from './payments.routes'
-import paymentRequestsRoutes from './paymentRequests.routes'
 import superadminRoutes from './superadmin.routes'
 import parentsRoutes from './parents.routes'
 import schoolRoutes from './school.routes'
@@ -35,7 +34,6 @@ router.use(itemsRoutes)
 router.use(afterSchoolClassesRoutes)
 router.use(transactionsRoutes)
 router.use(paymentsRoutes)
-router.use(paymentRequestsRoutes)
 router.use(superadminRoutes)
 router.use(parentsRoutes)
 

@@ -9,6 +9,7 @@ import { AcademicYear } from '../models/AcademicYear'
 import { StudentProfile } from '../models/StudentProfile'
 import { ClassSection } from '../models/ClassSection'
 import { requireAuth, requireRole, requireAdminOrStaffFor, requireRoleOr, AuthedRequest } from '../middleware/auth'
+import { proofUpload, proofImageUrl } from '../middleware/proofUpload'
 
 const router = Router()
 
@@ -30,7 +31,8 @@ async function serializeStructure(f: FeeStructure) {
     title: f.title,
     description: f.description,
     amount: Number(f.amount),
-    dueDate: f.dueDate,
+    dueDateStart: f.dueDateStart,
+    dueDateEnd: f.dueDateEnd,
     academicYearId: f.academicYearId != null ? String(f.academicYearId) : null,
     academicYear: academicYear?.year ?? null,
     gradeId: f.gradeId != null ? String(f.gradeId) : null,
@@ -61,7 +63,8 @@ async function serializeRecord(r: FeeRecord) {
     feeType: structure?.feeType ?? 'School Fee',
     title: structure?.title ?? '',
     amount: Number(r.amount),
-    dueDate: structure?.dueDate ?? null,
+    dueDateStart: structure?.dueDateStart ?? null,
+    dueDateEnd: structure?.dueDateEnd ?? null,
     gradeName: grade?.name ?? null,
     studentId: String(r.studentId),
     studentName: student?.name ?? '',
@@ -101,12 +104,13 @@ router.get('/fees/structures', requireAuth, async (req, res, next) => {
 
 router.post('/fees/structures', requireAuth, requireAdminOrStaffFor('Payments'), async (req, res, next) => {
   try {
-    const { feeType, title, description, amount, dueDate, academicYearId, gradeId, termId, isPackage, packageItemIds } = req.body as {
+    const { feeType, title, description, amount, dueDateStart, dueDateEnd, academicYearId, gradeId, termId, isPackage, packageItemIds } = req.body as {
       feeType?: FeeType
       title?: string
       description?: string
       amount?: number
-      dueDate?: string | null
+      dueDateStart?: string | null
+      dueDateEnd?: string | null
       academicYearId?: string | null
       gradeId?: string | null
       termId?: string | null
@@ -135,7 +139,8 @@ router.post('/fees/structures', requireAuth, requireAdminOrStaffFor('Payments'),
       title: title.trim(),
       description: description?.trim() || null,
       amount: finalAmount,
-      dueDate: dueDate || null,
+      dueDateStart: dueDateStart || null,
+      dueDateEnd: dueDateEnd || null,
       academicYearId: academicYearId ? Number(academicYearId) : null,
       gradeId: gradeId ? Number(gradeId) : null,
       termId: termId ? Number(termId) : null,
@@ -239,19 +244,28 @@ router.post('/fees/records/assign-class', requireAuth, requireAdminOrStaffFor('P
   }
 })
 
-router.post('/fees/records/:id/pay', requireAuth, requireAdminOrStaffFor('Payments'), async (req: AuthedRequest, res, next) => {
+// Admin/staff can optionally attach a receipt/proof image (e.g. a photo of a bank slip) when
+// recording a payment — sent as multipart/form-data with the file under the "proof" field;
+// a plain JSON body (no proof) still works exactly as before.
+router.post(
+  '/fees/records/:id/pay',
+  requireAuth,
+  requireAdminOrStaffFor('Payments'),
+  proofUpload.single('proof'),
+  async (req: AuthedRequest, res, next) => {
   try {
     const record = await FeeRecord.findByPk(req.params.id)
     if (!record) return res.status(404).json({ detail: 'Fee record not found' })
     // paidAmount here is the new absolute total paid (matches the admin UI, which
     // already adds the entered amount to the current paidAmount before calling this).
-    const { paidAmount, paymentMode } = req.body as { paidAmount?: number; paymentMode?: 'Cash' | 'Card' | 'Online Transfer' }
-    if (paidAmount == null || paidAmount <= Number(record.paidAmount)) {
+    const { paidAmount, paymentMode } = req.body as { paidAmount?: number | string; paymentMode?: 'Cash' | 'Card' | 'Online Transfer' }
+    const numericPaidAmount = paidAmount != null ? Number(paidAmount) : null
+    if (numericPaidAmount == null || numericPaidAmount <= Number(record.paidAmount)) {
       return res.status(400).json({ detail: 'paidAmount must be greater than the amount already paid' })
     }
 
-    const delta = paidAmount - Number(record.paidAmount)
-    const newPaid = Math.min(Number(record.amount), paidAmount)
+    const delta = numericPaidAmount - Number(record.paidAmount)
+    const newPaid = Math.min(Number(record.amount), numericPaidAmount)
     record.paidAmount = newPaid
     record.status = newPaid >= Number(record.amount) ? 'Paid' : newPaid > 0 ? 'Partial' : 'Unpaid'
     record.paidDate = new Date().toISOString().slice(0, 10)
@@ -266,6 +280,7 @@ router.post('/fees/records/:id/pay', requireAuth, requireAdminOrStaffFor('Paymen
       receiptNumber: `RCPT-F${record.id}-${Date.now()}`,
       paymentMode: paymentMode || 'Cash',
       collectedByUserId: req.user?.sub ?? null,
+      proofImagePath: req.file?.filename ?? null,
     })
 
     const records = await FeeRecord.findAll({ where: { studentId: record.studentId }, order: [['id', 'DESC']] })
@@ -273,6 +288,7 @@ router.post('/fees/records/:id/pay', requireAuth, requireAdminOrStaffFor('Paymen
   } catch (err) {
     next(err)
   }
-})
+  }
+)
 
 export default router

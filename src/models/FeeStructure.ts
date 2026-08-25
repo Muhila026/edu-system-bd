@@ -19,7 +19,10 @@ export interface FeeStructureAttributes {
   title: string
   description: string | null
   amount: number
-  dueDate: string | null
+  /** When the payment window opens — optional, informational only. */
+  dueDateStart: string | null
+  /** The actual due-by date — drives overdue status wherever fees are shown. */
+  dueDateEnd: string | null
   /** Grade/term-scoped fees (School Fee, Term Exam Fees) set these; Admission/Event/After-School
    *  Admission fees are school-wide and leave them null. */
   academicYearId: number | null
@@ -33,7 +36,7 @@ export interface FeeStructureAttributes {
 
 type FeeStructureCreationAttributes = Optional<
   FeeStructureAttributes,
-  'id' | 'description' | 'dueDate' | 'academicYearId' | 'gradeId' | 'termId' | 'isPackage' | 'packageItems'
+  'id' | 'description' | 'dueDateStart' | 'dueDateEnd' | 'academicYearId' | 'gradeId' | 'termId' | 'isPackage' | 'packageItems'
 >
 
 export class FeeStructure
@@ -45,7 +48,8 @@ export class FeeStructure
   declare title: string
   declare description: string | null
   declare amount: number
-  declare dueDate: string | null
+  declare dueDateStart: string | null
+  declare dueDateEnd: string | null
   declare academicYearId: number | null
   declare gradeId: number | null
   declare termId: number | null
@@ -71,7 +75,8 @@ FeeStructure.init(
     title: { type: DataTypes.STRING(200), allowNull: false },
     description: { type: DataTypes.TEXT, allowNull: true },
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-    dueDate: { type: DataTypes.DATEONLY, allowNull: true },
+    dueDateStart: { type: DataTypes.DATEONLY, allowNull: true },
+    dueDateEnd: { type: DataTypes.DATEONLY, allowNull: true },
     academicYearId: { type: DataTypes.INTEGER, allowNull: true },
     gradeId: { type: DataTypes.INTEGER, allowNull: true },
     termId: { type: DataTypes.INTEGER, allowNull: true },

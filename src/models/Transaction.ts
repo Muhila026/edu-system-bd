@@ -17,11 +17,13 @@ export interface TransactionAttributes {
   paymentMode: PaymentMode
   /** Admin/Super Admin user who processed this payment — needed for daily cash reconciliation. */
   collectedByUserId: number | null
+  /** Filename of an optional receipt/proof image the collector attached (e.g. a scanned bank slip). */
+  proofImagePath: string | null
 }
 
 type TransactionCreationAttributes = Optional<
   TransactionAttributes,
-  'id' | 'referenceId' | 'notes' | 'paymentMode' | 'collectedByUserId'
+  'id' | 'referenceId' | 'notes' | 'paymentMode' | 'collectedByUserId' | 'proofImagePath'
 >
 
 export class Transaction
@@ -38,6 +40,7 @@ export class Transaction
   declare notes: string | null
   declare paymentMode: PaymentMode
   declare collectedByUserId: number | null
+  declare proofImagePath: string | null
 }
 
 Transaction.init(
@@ -52,6 +55,7 @@ Transaction.init(
     notes: { type: DataTypes.TEXT, allowNull: true },
     paymentMode: { type: DataTypes.ENUM('Cash', 'Card', 'Online Transfer'), allowNull: false, defaultValue: 'Cash' },
     collectedByUserId: { type: DataTypes.INTEGER, allowNull: true },
+    proofImagePath: { type: DataTypes.STRING(255), allowNull: true },
   },
   {
     sequelize,
