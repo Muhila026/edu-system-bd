@@ -5,7 +5,7 @@ import multer from 'multer'
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'payment-proofs')
 fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 
-/** Optional receipt/proof image attached by admin/staff when recording a payment. */
+/** Optional receipt/proof (photo or scanned PDF) attached by admin/staff when recording a payment. */
 export const proofUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -17,7 +17,9 @@ export const proofUpload = multer({
   }),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) return cb(new Error('Proof must be an image file'))
+    if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
+      return cb(new Error('Proof must be an image or a PDF file'))
+    }
     cb(null, true)
   },
 })
